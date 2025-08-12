@@ -16,5 +16,5 @@ This is a [now page](https://nownownow.com/about), and you should make one too.
 
 ### Personal Life
 * Reading "Crucial Converstaions".
-* Training for [Cirque Series Snowbired](https://www.cirqueseries.com/snowbird).
+* Training for [Cirque Series Snowbird](https://www.cirqueseries.com/snowbird).
 * Enjoying the summer by hiking and playing spikeball.
