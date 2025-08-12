@@ -10,11 +10,11 @@ permalink: /now/index.html
 This is a [now page](https://nownownow.com/about), and you should make one too.
 
 ### Professional Life
-* Working as a [Your Job Title] at [Your Company].
-* Focusing on learning [A Skill or Technology].
-* Collaborating on [A Project].
+* Working as a Image Team Technician at BYU.
+* Focusing on learning cloud security.
+<!-- * Collaborating on [A Project]. -->
 
 ### Personal Life
-* Reading "[A Book You're Reading]".
-* Training for [A Fitness Goal].
-* Enjoying the [Current Season] by [An Activity].
+* Reading "Crucial Converstaions".
+* Training for [Cirque Series Snowbired](https://www.cirqueseries.com/snowbird).
+* Enjoying the summer by hiking and playing spikeball.
