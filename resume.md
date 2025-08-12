@@ -6,7 +6,7 @@ description: "Resume for Tate McCauley, a cybersecurity student with experience 
 ---
 
 ## Tate McCauley
-Provo, UT • (801)-643-9827 • tatemccauley@gmail.com • [linkedin.com/in/tate-mccauley](https://linkedin.com/in/tate-mccauley)
+Provo, UT  • [linkedin.com/in/tate-mccauley](https://linkedin.com/in/tate-mccauley)
 
 ---
 
