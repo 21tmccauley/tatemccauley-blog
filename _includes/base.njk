@@ -80,6 +80,65 @@
     font-size: 0.9em;
     font-weight: bold;
 }
+
+/* ---- UTILITY CLASSES FOR LINKS ---- */
+.no-underline a {
+    border-bottom: none; /* Removes the blue underline */
+}
+
+.no-underline a:hover {
+    background-color: inherit; /* Disables the red background on hover */
+    color: var(--main-color); /* Changes text to blue on hover */
+}
+
+/* Clean list styling */
+.clean-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.clean-list li {
+    margin-bottom: 1em;
+}
+
+/* Bold links */
+.bold-links a {
+    font-weight: bold;
+}
+
+/* Muted text for dates/meta */
+.muted {
+    color: #555;
+    font-size: 0.9em;
+}
+
+/* Combined utility class for recent posts */
+.recent-posts {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.recent-posts li {
+    margin-bottom: 1em;
+}
+
+.recent-posts a {
+    border-bottom: none;
+    font-weight: bold;
+}
+
+.recent-posts a:hover {
+    background-color: inherit;
+    color: var(--main-color);
+}
+
+.recent-posts time {
+    color: #555;
+    font-size: 0.9em;
+    margin-left: 0.5em;
+}
     </style>
 </head>
 <body>
