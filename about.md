@@ -15,7 +15,7 @@ My path into tech didn't start with by discovering a 0-day, or breaking into a c
 
 I’ve had a couple of internships that gave me a look at security from two totally different angles.
 
-At **FJ Management**, I was thrown right into the deep end as an ITGC auditor/. I got to help with the security audit for Maverik's acquisition of Kum & Go and took a close look at their software development pipelines. I learned to think about security from 10,000 feet up—strategy, risk, and compliance.
+At **FJ Management**, I was thrown right into the deep end as an ITGC auditor/. I got to help with the security audit for Maverik's acquisition of Kum & Go and took a close look at their software development pipelines. I learned to think about security from 10,000 feet up — strategy, risk, and compliance.
 
 But I knew I also wanted to see what day to day life in security looked like.
 
