@@ -15,7 +15,7 @@ My path into tech didn't start with by discovering a 0-day, or breaking into a c
 
 I’ve had a couple of internships that gave me a look at security from two totally different angles.
 
-At **FJ Management**, I was thrown right into the deep end as an ITGC auditor/. I got to help with the security audit for Maverik's acquisition of Kum & Go and took a close look at their software development pipelines. I learned to think about security from 10,000 feet up — strategy, risk, and compliance.
+At **FJ Management**, I was thrown right into the deep end as an ITGC auditor. I got to help with the security audit for Maverik's acquisition of Kum & Go and took a close look at their software development pipelines. I learned to think about security from 10,000 feet up — strategy, risk, and compliance.
 
 But I knew I also wanted to see what day to day life in security looked like.
 
@@ -27,7 +27,7 @@ Having both perspectives taught me one thing: you can't write good policy if you
 
 So, why this site? On one hand, it's my professional launchpad. I'm using it to share what I've learned while I hunt for my first full-time role.
 
-On the other hand, this is just my personal corner of the internet. I want to share my expereinces in Cyber, but don't be surprised to find posts about other things I find interesting, too.
+On the other hand, I want to become a better writer. After spending most of my life avoiding oportunities to write my thoughs, I figured I would just dive right in.
 
 ### Beyond the Keyboard
 

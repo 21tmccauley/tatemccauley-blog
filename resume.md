@@ -22,7 +22,7 @@ A highly motivated cybersecurity student with a unique combination of experience
 
 **IT/Cybersecurity Auditor** | FJ Management | Salt Lake City, UT | *January 2025 – April 2025*
 * Participated in IT General Control (ITGC) audits focusing on Application Change Management, Access Control, and Security Awareness to ensure compliance and identify risks.
-* Analyzed the cybersecurity posture of newly acquired companies
+* Analyzed the cybersecurity posture of newly acquired companies.
 * Evaluated network integrations and firewall rulebases (Palo Alto, Cisco) to identify integration risks.
 * Designed and executed targeted phishing campaigns using GoPhish to assess and report on executive-level security training effectiveness.
 
