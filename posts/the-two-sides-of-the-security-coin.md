@@ -40,7 +40,7 @@ My time in auditing gave me a deep appreciation for why the rules existed for ou
 
 I hope you'll follow along as I share specific stories and insights from these roles.
 
-**Next week**, I'll dive into my first major project: auditing the security integration of a massive corporate merger.
+**Next week**, I'll dive into my first major project: auditing the security integration of a corporate merger.
 
 ---
 
