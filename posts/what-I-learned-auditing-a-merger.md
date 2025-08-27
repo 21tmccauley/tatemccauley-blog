@@ -1,7 +1,7 @@
 ---
 layout: base.njk
 title: "What I Learned Auditing a Corporate Merger"
-date: 2025-07-17
+date: 2025-08-20
 tags: post
 excerpt: "A cybersecurity intern's perspective on the complex process of securely integrating two companies' digital infrastructure during a major corporate merger."
 ---

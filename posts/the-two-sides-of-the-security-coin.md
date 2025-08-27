@@ -1,7 +1,7 @@
 ---
 layout: base.njk
 title: "The Two Sides of the Cybersecurity Coin"
-date: 2025-07-10
+date: 2025-08-13
 tags: post
 excerpt: "A cybersecurity student shares insights from experiencing both Governance, Risk & Compliance (GRC) and Security Operations roles through two different internships."
 ---
