@@ -3,7 +3,7 @@ layout: base.njk
 title: "From Pipelines to Policies: Auditing Modern Application Development"
 date: 2025-08-27
 tags: post
-excerpt: "A deep dive into auditing a modern CI/CD pipeline, connecting high-level security policies to the technical reality of developer workflows and tools like Snyk and SonarQube."
+excerpt: "My deep dive into auditing a modern CI/CD pipeline, connecting high-level security policies to the technical reality of developer workflows and tools like Snyk and SonarQube."
 ---
 
 # From Pipelines to Policies: Auditing Modern Application Development
