@@ -44,4 +44,4 @@ Auditing a CI/CD pipeline taught me that a modern auditor is a translator. You h
 
 ---
 
-*This is part of a series about my cybersecurity internship experiences. Catch up on [Post 1: The Two Sides of the Cybersecurity Coin](/posts/the-two-sides-of-the-security-coin/) and [Post 2: Auditing a Corporate Merger](/posts/what-i-learned-auditing-a-merger/).*
+*This is part of a series about my cybersecurity internship experiences. Read the [first post](/posts/the-two-sides-of-the-security-coin/) to understand the context of my journey through both GRC and Security Operations roles.*
