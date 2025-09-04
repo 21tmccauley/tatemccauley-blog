@@ -48,7 +48,7 @@ My time in the GRC world, from auditing mergers to testing our human defenses, g
 
 ---
 
-*This is part of a series about my cybersecurity internship experiences. Read the previous posts to catch up on the journey so far.*
+*This is part of a series about my cybersecurity internship experiences. Read the [first post](/posts/the-two-sides-of-the-security-coin/) to understand the context of my journey through both GRC and Security Operations roles.*
 
 
 
