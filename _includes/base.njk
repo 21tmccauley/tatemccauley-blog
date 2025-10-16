@@ -29,6 +29,32 @@
             --text-color: #232333;
             --link-color: #232333;
             --main-color: #0011ffff;
+            --border-color: #232333;
+            --muted-color: #555;
+        }
+
+        /* Dark theme colors */
+        [data-theme="dark"] {
+            --background-color: #1a1a1a;
+            --heading-color: #e0e0e0;
+            --text-color: #d0d0d0;
+            --link-color: #e0e0e0;
+            --main-color: #5588ff;
+            --border-color: #e0e0e0;
+            --muted-color: #999;
+        }
+
+        /* Auto dark mode based on system preference */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --background-color: #1a1a1a;
+                --heading-color: #e0e0e0;
+                --text-color: #d0d0d0;
+                --link-color: #e0e0e0;
+                --main-color: #5588ff;
+                --border-color: #e0e0e0;
+                --muted-color: #999;
+            }
         }
 
         body {
@@ -40,12 +66,30 @@
             background-color: var(--background-color);
             line-height: 1.6;
             color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         h1,h2,h3,h4,h5,h6 { font-family: var(--font-main); color: var(--heading-color); }
         a { color: var(--link-color); text-decoration: none; border-bottom: 3px solid var(--main-color); padding-bottom: 2px; }
         a:hover { background-color: var(--main-color); color: white; }
-        header { margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px dotted #232333; }
-        footer { margin-top: 40px; border-top: 3px dotted #232333; padding: 25px 0; text-align: center;}
+        header { margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px dotted var(--border-color); }
+        footer { margin-top: 40px; border-top: 3px dotted var(--border-color); padding: 25px 0; text-align: center;}
+        
+        /* Theme toggle link */
+        .theme-toggle {
+            background: none;
+            border: none;
+            font-family: var(--font-secondary);
+            font-size: inherit;
+            cursor: pointer;
+            padding: 0;
+            color: var(--link-color);
+            border-bottom: 3px solid var(--main-color);
+            padding-bottom: 2px;
+        }
+        .theme-toggle:hover {
+            background-color: var(--main-color);
+            color: white;
+        }
         main h1:first-child, main h2:first-child { margin-top: 0; }
         /* A little style so the main h1 doesn't have an underline from the header link */
         header a { border-bottom: none; }
@@ -69,7 +113,7 @@
     color: var(--main-color); /* Changes text to red on hover */
 }
 .post-meta {
-    color: #555;
+    color: var(--muted-color);
     font-size: 0.9em;
     margin: 0.2em 0 0.5em 0; /* Adjusts spacing around the date */
 }
@@ -109,7 +153,7 @@
 
 /* Muted text for dates/meta */
 .muted {
-    color: #555;
+    color: var(--muted-color);
     font-size: 0.9em;
 }
 
@@ -135,7 +179,7 @@
 }
 
 .recent-posts time {
-    color: #555;
+    color: var(--muted-color);
     font-size: 0.9em;
     margin-left: 0.5em;
 }
@@ -150,6 +194,9 @@
             <a href="/about/">About</a>
             <a href="/resume/">Resume</a>
             <a href="/now/">Now</a>
+            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+                <span id="theme-text">Dark</span>
+            </button>
         </nav>
     </header>
 
@@ -160,5 +207,53 @@
     <footer>
         <span>&copy; {% year %} Tate McCauley</span>
     </footer>
+
+    <script>
+        // Theme toggle functionality
+        const html = document.documentElement;
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeText = document.getElementById('theme-text');
+        
+        // Check for saved theme preference or default to system preference
+        const currentTheme = localStorage.getItem('theme');
+        
+        if (currentTheme) {
+            html.setAttribute('data-theme', currentTheme);
+            updateText(currentTheme);
+        } else {
+            // Check system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) {
+                updateText('dark');
+            }
+        }
+        
+        // Toggle theme
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateText(newTheme);
+        });
+        
+        // Update text based on theme
+        function updateText(theme) {
+            if (theme === 'dark') {
+                themeText.textContent = 'Light';
+            } else {
+                themeText.textContent = 'Dark';
+            }
+        }
+        
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                const newTheme = e.matches ? 'dark' : 'light';
+                updateText(newTheme);
+            }
+        });
+    </script>
 </body>
 </html>
