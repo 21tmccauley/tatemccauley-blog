@@ -178,12 +178,65 @@
     color: var(--main-color);
 }
 
-.recent-posts time {
-    color: var(--muted-color);
-    font-size: 0.9em;
-    margin-left: 0.5em;
-}
+        .recent-posts time {
+            color: var(--muted-color);
+            font-size: 0.9em;
+            margin-left: 0.5em;
+        }
+
+        /* Code block styling */
+        pre {
+            background-color: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 1em;
+            overflow-x: auto;
+            margin: 1.5em 0;
+        }
+
+        code {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        pre code {
+            display: block;
+            background: transparent;
+            padding: 0;
+        }
+
+        /* Inline code */
+        :not(pre) > code {
+            background-color: rgba(0, 17, 255, 0.1);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        [data-theme="dark"] :not(pre) > code {
+            background-color: rgba(85, 136, 255, 0.2);
+        }
+
+        /* Mermaid diagram styling */
+        .mermaid {
+            background-color: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 1.5em;
+            margin: 1.5em 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        /* Prism.js theme adjustments for dark mode */
+        [data-theme="dark"] pre[class*="language-"] {
+            background-color: #1e1e1e;
+        }
     </style>
+    
+    <!-- Prism.js CSS for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" media="(prefers-color-scheme: dark)">
 </head>
 <body>
     <header>
@@ -253,6 +306,96 @@
                 const newTheme = e.matches ? 'dark' : 'light';
                 updateText(newTheme);
             }
+        });
+    </script>
+
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    
+    <!-- Mermaid.js for diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        
+        function getTheme() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+        }
+        
+        function getThemeVariables(theme) {
+            return {
+                primaryColor: theme === 'dark' ? '#5588ff' : '#0011ff',
+                primaryTextColor: theme === 'dark' ? '#e0e0e0' : '#232333',
+                primaryBorderColor: theme === 'dark' ? '#e0e0e0' : '#232333',
+                lineColor: theme === 'dark' ? '#e0e0e0' : '#232333',
+                secondaryColor: theme === 'dark' ? '#2a2a2a' : '#f0f0f0',
+                tertiaryColor: theme === 'dark' ? '#1a1a1a' : '#fff'
+            };
+        }
+        
+        function initializeMermaid() {
+            const theme = getTheme();
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: theme,
+                themeVariables: getThemeVariables(theme)
+            });
+            
+            // Convert code blocks with language-mermaid to div.mermaid
+            document.querySelectorAll('code.language-mermaid').forEach(codeEl => {
+                const pre = codeEl.parentElement;
+                const mermaidDiv = document.createElement('div');
+                mermaidDiv.className = 'mermaid';
+                mermaidDiv.textContent = codeEl.textContent;
+                pre.parentNode.replaceChild(mermaidDiv, pre);
+            });
+            
+            // Render all Mermaid diagrams
+            document.querySelectorAll('.mermaid').forEach(async (el) => {
+                if (!el.hasAttribute('data-processed')) {
+                    el.setAttribute('data-processed', 'true');
+                    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                    const definition = el.textContent.trim();
+                    try {
+                        const { svg } = await mermaid.render(id, definition);
+                        el.innerHTML = svg;
+                    } catch (error) {
+                        console.error('Mermaid rendering error:', error);
+                        el.innerHTML = '<p style="color: red;">Error rendering diagram</p>';
+                    }
+                }
+            });
+        }
+        
+        // Initialize on page load
+        initializeMermaid();
+        
+        // Update Mermaid theme when user toggles dark mode
+        const observer = new MutationObserver(() => {
+            const theme = getTheme();
+            mermaid.initialize({ 
+                startOnLoad: false,
+                theme: theme,
+                themeVariables: getThemeVariables(theme)
+            });
+            
+            // Re-render all Mermaid diagrams with new theme
+            document.querySelectorAll('.mermaid[data-processed]').forEach(async (el) => {
+                el.removeAttribute('data-processed');
+                const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+                const definition = el.textContent.trim();
+                try {
+                    const { svg } = await mermaid.render(id, definition);
+                    el.innerHTML = svg;
+                    el.setAttribute('data-processed', 'true');
+                } catch (error) {
+                    console.error('Mermaid rendering error:', error);
+                }
+            });
+        });
+        
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-theme']
         });
     </script>
 </body>
