@@ -1,9 +1,9 @@
 ---
 layout: base.njk
 title: "Building a Real-Time Chat App: Lessons from Cloud Architecture"
-date: 2025-01-15
+date: 2025-12-31
 tags: post
-excerpt: "A journey from AWS acronyms to a working serverless chat application, and what I learned about state, IAM, and modern development tools."
+excerpt: "From AWS acronyms to a working serverless chat application, and what I learned about state, IAM, and modern development tools."
 ---
 
 # Building a Real-Time Chat App: Lessons from Cloud Architecture
