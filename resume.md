@@ -2,7 +2,7 @@
 layout: base.njk
 title: Resume
 permalink: /resume/index.html
-description: "Resume for Tate McCauley, a cybersecurity student with experience in GRC, security operations, and IT administration."
+description: "Resume for Tate McCauley, a Forward Deployed Engineer at Paramify with a background in GRC, security operations, and IT administration."
 ---
 
 # Tate McCauley
@@ -27,7 +27,14 @@ Cybersecurity <span class="spacer"></span> Apr 2026
 
 ## Experience
 
-### Image Team Technician (Security Engineering), BYU Office of Information Technology <span class="spacer"></span> Aug 2025 &mdash; Present
+### Forward Deployed Engineer, Paramify <span class="spacer"></span> Feb 2026 &mdash; Present
+
+- **Evidence Automation Framework:** Designed and built a schema-driven framework for automated compliance-evidence collection spanning **100+ integrations** (AWS, Azure, Okta, GitLab, Kubernetes, and more), with a single contract driving human, JSON/agent, and terminal-UI frontends and packaged for Docker, Kubernetes, and Terraform deployment.
+- **Developer Tooling & SDK:** Authored an internal **Python SDK** and a git-style CLI (porcelain/plumbing commands, JSON-first output) that lets both engineers and AI agents drive the Paramify platform, shipped as versioned releases with self-contained binaries via CI.
+- **AI-Native Automation:** Built agentic tooling that triages failing compliance validators unattended, running headlessly on a schedule to diagnose regressions and surface root causes, plus **MCP** servers providing semantic search and persistent memory over an internal corpus.
+- **FedRAMP 20x:** Mapped the new **FedRAMP 20x** Key Security Indicators (KSIs) to concrete automated cloud checks across AWS, Azure, and GCP, translating the outcome-based baseline into machine-verifiable evidence.
+
+### Image Team Technician (Security Engineering), BYU Office of Information Technology <span class="spacer"></span> Aug 2025 &mdash; Feb 2026
 
 - **Automation Engineering:** Developed custom **PowerShell** automation to audit **Active Directory** inventory, programmatically flagging devices with incorrect naming conventions or misconfigured OUs to close security gaps.
 - **Systems Integrity:** Manage the security posture of **1,000+ endpoints** using CrowdStrike Falcon, executing patch management cycles and maintaining system images to ensure enterprise compliance.
