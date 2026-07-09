@@ -5,17 +5,15 @@ permalink: /now/index.html
 ---
 ## What I'm doing now
 
-*(Updated December 31, 2025 from Provo, Utah)*
+*(Updated July 9, 2026 from Provo, Utah)*
 
 This is a [now page](https://nownownow.com/about), and you should make one too.
 
 ### Professional Life
-* Working as a Image Team Technician at BYU.
-* Focusing on learning cloud security.
-* Finishing my last year at BYU
-<!-- * Collaborating on [A Project]. -->
+* Working as a Forward Deployed Engineer at Paramify.
+* Building tools that automate FedRAMP and GRC evidence collection and validation.
+* Digging into how to build AI-native tooling for compliance.
 
 ### Personal Life
-* Reading "How to Know a Person".
-* Going to the gym every morning.
-* Trudging through a cold winter.
+* Hiking and cycling around Utah this summer.
+* Playing a lot of guitar.
