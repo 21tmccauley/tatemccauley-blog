@@ -2,14 +2,14 @@
 layout: base.njk
 title: About Me
 permalink: /about/index.html
-description: "About Tate McCauley, a cybersecurity student at BYU with experience in GRC, IT audit, and technical security operations."
+description: "About Tate McCauley, a Forward Deployed Engineer at Paramify building tooling for FedRAMP and GRC automation, with a background in IT audit and security operations."
 ---
 
 ## Hey, I'm Tate.
 
-I'm a senior at BYU studying Cybersecurity and getting ready to start a full-time career.
+I'm a Forward Deployed Engineer at Paramify, where I build tools that automate the tedious parts of FedRAMP and GRC — collecting security evidence, validating controls, and turning compliance work into code.
 
-My path into tech didn't start with by discovering a 0-day, or breaking into a computer. It started small: figuring out how to code simple programs on a TI-84 calculator back in junior high. I was hooked and kept learning about computers until I landed in the world of cybersecurity and IT.
+My path into tech didn't start by discovering a 0-day or breaking into a computer. It started small: figuring out how to code simple programs on a TI-84 calculator back in junior high. I was hooked and kept learning about computers until I landed in the world of cybersecurity and IT. I graduated from BYU in Cybersecurity in the spring of 2026.
 
 ### Seeing Security from Both Sides
 
@@ -23,14 +23,18 @@ That's why I spent the following months at **Big West Oil**, living on the front
 
 Having both perspectives taught me one thing: you can't write good policy if you don't know the tech, and you can't protect the tech if you don't know the business risk.
 
+### From Auditing Security to Building For It
+
+Those internships taught me to see security from both sides. At Paramify, I get to act on both. As a Forward Deployed Engineer, I build tools — more and more of them AI-native — that take the manual, spreadsheet-heavy reality of compliance and turn it into something automated. It turns out the "boring" corner of security I first met as an auditor is quietly becoming one of the most interesting places to build.
+
 ### Why This Blog?
 
-So, why this site? On one hand, it's my professional launchpad. I'm using it to share what I've learned while I hunt for my first full-time role.
+For one, I want to share what I'm learning as compliance shifts from checklists to code — especially now, with FedRAMP 20x rewriting the rules and AI changing how we build.
 
-On the other hand, I want to become a better writer. After spending most of my life avoiding oportunities to write my thoughs, I figured I would just dive right in.
+For another, I want to become a better writer. After spending most of my life avoiding opportunities to write down my thoughts, I figured I'd just dive right in.
 
 ### Beyond the Keyboard
 
-When I'm not staring at a screen, I'm usually outside. I spent most of this past summer hiking Utah's incredible trails. Otherwise, you can find me unwinding on the piano or guitar.
+When I'm not staring at a screen, I'm usually outside. Lately that means hiking and cycling around Utah. Otherwise, you can find me playing guitar.
 
 Thanks for stopping by. Feel free to connect with me on [LinkedIn](https://www.linkedin.com/in/tate-mccauley/) or check out what I'm [writing about](/posts/).
