@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 
 	blog "github.com/tatemccauley/tatemccauley-blog"
 )
@@ -19,17 +20,36 @@ type screen int
 
 const (
 	screenIntro screen = iota
-	screenHome
-	screenList
+	screenMain
 	screenPost
 )
+
+// tab is one entry in the global nav bar, mirroring the website's header:
+// Home · Blog · About · Resume · Now.
+type tab int
+
+const (
+	tabHome tab = iota
+	tabBlog
+	tabAbout
+	tabResume
+	tabNow
+	tabCount
+)
+
+var tabTitles = [tabCount]string{"Home", "Blog", "About", "Resume", "Now"}
+
+// isPage reports whether the tab shows a standalone markdown page in the
+// scrolling viewport (as opposed to Home and Blog, which compose their own
+// content).
+func (t tab) isPage() bool { return t == tabAbout || t == tabResume || t == tabNow }
 
 const (
 	maxColumn = 76 // readable column cap; content is centered in the terminal
 	topMargin = 1
-	// Lines the post chrome reserves around the scrolling viewport:
-	// top(1) + header(2) + gap(1) + gap(1) + footer(2).
-	postChromeLines = 7
+	// Lines the chrome reserves around the scrolling viewport:
+	// top(1) + nav(2) + gap(1) + gap(1) + footer(2).
+	chromeLines = 7
 )
 
 type post struct {
@@ -44,21 +64,28 @@ type model struct {
 	width, height int
 	contentWidth  int
 	screen        screen
+	tab           tab
 	posts         []post
 	cursor        int
-	frame         int    // intro animation frame counter
-	homeMarkdown  string // raw body from tui/home.md
-	homeView      string // homeMarkdown rendered via glamour at contentWidth
+	frame         int            // intro animation frame counter
+	homeMarkdown  string         // raw body from tui/home.md
+	homeView      string         // homeMarkdown rendered via glamour at contentWidth
+	pageMD        map[tab]string // raw markdown for the About/Resume/Now tabs
+	pageView      map[tab]string // pageMD rendered via glamour at contentWidth
+	pageScroll    map[tab]int    // saved offsets so each page keeps its place
 	md            *glamour.TermRenderer
 }
 
-func newModel(r *lipgloss.Renderer, posts []post, homeMarkdown string) *model {
+func newModel(r *lipgloss.Renderer, posts []post, homeMarkdown string, pages map[tab]string) *model {
 	return &model{
 		th:           newTheme(r),
 		vp:           viewport.New(0, 0),
 		screen:       screenIntro,
 		posts:        posts,
 		homeMarkdown: homeMarkdown,
+		pageMD:       pages,
+		pageView:     make(map[tab]string, len(pages)),
+		pageScroll:   make(map[tab]int, len(pages)),
 	}
 }
 
@@ -67,8 +94,8 @@ func (m *model) Init() tea.Cmd {
 }
 
 // setSize recomputes layout for a new terminal size: the content column, the
-// glamour renderer (wrap width, color profile) and cached home render, and the
-// post viewport dimensions.
+// glamour renderer (wrap width, color profile) and cached page renders, and
+// the viewport dimensions.
 func (m *model) setSize(w, h int) {
 	m.width, m.height = w, h
 	cw := w - 6
@@ -82,39 +109,41 @@ func (m *model) setSize(w, h int) {
 
 	if r, err := m.th.markdownRenderer(cw); err == nil {
 		m.md = r
-		if out, err := r.Render(m.homeMarkdown); err == nil {
-			m.homeView = strings.TrimRight(out, "\n")
-		} else {
-			m.homeView = m.homeMarkdown
-		}
+	}
+	m.homeView = m.renderMarkdown(m.homeMarkdown)
+	for t, md := range m.pageMD {
+		m.pageView[t] = m.renderMarkdown(md)
 	}
 
 	m.vp.Width = cw
-	m.vp.Height = m.postBodyHeight()
-	m.reloadPostViewportAfterResize()
+	m.vp.Height = m.viewportHeight()
+	m.reloadViewportAfterResize()
 }
 
-func (m *model) postBodyHeight() int {
-	h := m.height - postChromeLines
+func (m *model) viewportHeight() int {
+	h := m.height - chromeLines
 	if h < 3 {
 		h = 3
 	}
 	return h
 }
 
-// renderPostBody renders the selected post's markdown through glamour, falling
-// back to plain wrapped text if the renderer is unavailable.
+// renderMarkdown renders through glamour, falling back to plain wrapped text
+// if the renderer is unavailable.
+func (m *model) renderMarkdown(s string) string {
+	if m.md != nil {
+		if out, err := m.md.Render(s); err == nil {
+			return strings.TrimRight(out, "\n")
+		}
+	}
+	return wrapText(s, m.contentWidth)
+}
+
 func (m *model) renderPostBody() string {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
 		return ""
 	}
-	body := m.posts[m.cursor].body
-	if m.md != nil {
-		if out, err := m.md.Render(body); err == nil {
-			return strings.TrimRight(out, "\n")
-		}
-	}
-	return wrapText(body, m.contentWidth)
+	return m.renderMarkdown(m.posts[m.cursor].body)
 }
 
 func (m *model) loadPostIntoViewport() {
@@ -122,18 +151,44 @@ func (m *model) loadPostIntoViewport() {
 		return
 	}
 	m.vp.Width = m.contentWidth
-	m.vp.Height = m.postBodyHeight()
+	m.vp.Height = m.viewportHeight()
 	m.vp.SetContent(m.renderPostBody())
 	m.vp.GotoTop()
 }
 
-func (m *model) reloadPostViewportAfterResize() {
-	if m.screen != screenPost || m.cursor < 0 || m.cursor >= len(m.posts) {
+func (m *model) reloadViewportAfterResize() {
+	prev := m.vp.YOffset
+	switch {
+	case m.screen == screenPost:
+		if m.cursor < 0 || m.cursor >= len(m.posts) {
+			return
+		}
+		m.vp.SetContent(m.renderPostBody())
+	case m.screen == screenMain && m.tab.isPage():
+		m.vp.SetContent(m.pageView[m.tab])
+	default:
 		return
 	}
-	prev := m.vp.YOffset
-	m.vp.SetContent(m.renderPostBody())
 	m.vp.SetYOffset(prev)
+}
+
+// switchTab moves the nav selection from any screen, saving and restoring
+// page scroll positions so each tab keeps its place.
+func (m *model) switchTab(t tab) {
+	if t < 0 || t >= tabCount || (t == m.tab && m.screen == screenMain) {
+		return
+	}
+	if m.screen == screenMain && m.tab.isPage() {
+		m.pageScroll[m.tab] = m.vp.YOffset
+	}
+	m.screen = screenMain
+	m.tab = t
+	if t.isPage() {
+		m.vp.Width = m.contentWidth
+		m.vp.Height = m.viewportHeight()
+		m.vp.SetContent(m.pageView[t])
+		m.vp.SetYOffset(m.pageScroll[t])
+	}
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -147,7 +202,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.frame++
 		if m.frame > introFrames {
-			m.screen = screenHome
+			m.screen = screenMain
 			return m, nil
 		}
 		return m, introTickCmd()
@@ -158,51 +213,91 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "q":
 				return m, tea.Quit
 			}
-			m.screen = screenHome // any other key skips the intro
+			m.screen = screenMain // any other key skips the intro
 			return m, nil
-		case screenHome:
-			switch msg.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			case "enter", "p":
-				m.screen = screenList
-			}
-			return m, nil
-		case screenList:
-			switch msg.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			case "up", "k":
-				if m.cursor > 0 {
-					m.cursor--
-				}
-			case "down", "j":
-				if m.cursor < len(m.posts)-1 {
-					m.cursor++
-				}
-			case "enter":
-				if len(m.posts) > 0 {
-					m.screen = screenPost
-					m.loadPostIntoViewport()
-				}
-			case "esc":
-				m.screen = screenHome
-			}
+		case screenMain:
+			return m.updateMain(msg)
 		case screenPost:
-			switch msg.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			case "esc":
-				m.screen = screenList
-				return m, nil
-			}
-			var cmd tea.Cmd
-			m.vp, cmd = m.vp.Update(msg)
-			return m, cmd
+			return m.updatePost(msg)
 		}
 		return m, nil
 	}
 	return m, nil
+}
+
+// handleNavKey applies the tab-switching keys shared by every screen with a
+// nav bar. It reports whether the key was consumed.
+func (m *model) handleNavKey(key string) bool {
+	switch key {
+	case "right", "tab":
+		m.switchTab((m.tab + 1) % tabCount)
+	case "left", "shift+tab":
+		m.switchTab((m.tab + tabCount - 1) % tabCount)
+	case "1", "2", "3", "4", "5":
+		m.switchTab(tab(key[0] - '1'))
+	default:
+		return false
+	}
+	return true
+}
+
+func (m *model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "esc":
+		m.switchTab(tabHome)
+		return m, nil
+	}
+	if m.handleNavKey(key) {
+		return m, nil
+	}
+
+	switch m.tab {
+	case tabHome:
+		if key == "enter" || key == "p" {
+			m.switchTab(tabBlog)
+		}
+	case tabBlog:
+		switch key {
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.posts)-1 {
+				m.cursor++
+			}
+		case "enter":
+			if len(m.posts) > 0 {
+				m.screen = screenPost
+				m.loadPostIntoViewport()
+			}
+		}
+	default: // page tabs scroll in the viewport
+		var cmd tea.Cmd
+		m.vp, cmd = m.vp.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m *model) updatePost(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "esc":
+		m.screen = screenMain
+		return m, nil
+	}
+	if m.handleNavKey(key) {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.vp, cmd = m.vp.Update(msg)
+	return m, cmd
 }
 
 func (m *model) View() string {
@@ -212,14 +307,10 @@ func (m *model) View() string {
 	switch m.screen {
 	case screenIntro:
 		return m.viewIntro()
-	case screenList:
-		return m.viewList()
 	case screenPost:
 		return m.viewPost()
-	case screenHome:
-		return m.viewHome()
 	default:
-		return "Unknown screen"
+		return m.viewMain()
 	}
 }
 
@@ -228,16 +319,26 @@ func (m *model) center(s string) string {
 	return m.th.r.PlaceHorizontal(m.width, lipgloss.Center, s)
 }
 
-// headerBar is the brand line + rule shown on the list and post screens.
-func (m *model) headerBar(crumb string) string {
+// navBar mirrors the website's global header: brand on the left, page tabs on
+// the right with the active one highlighted. On terminals too narrow for
+// both, the brand is dropped so the tabs stay on one line.
+func (m *model) navBar() string {
 	cw := m.contentWidth
-	brand := m.th.brand.Render("tatemccauley.com")
-	right := m.th.crumb.Render(crumb)
-	gap := cw - lipgloss.Width(brand) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
+	items := make([]string, 0, tabCount)
+	for i, title := range tabTitles {
+		if tab(i) == m.tab {
+			items = append(items, m.th.tabActive.Render(title))
+		} else {
+			items = append(items, m.th.tabInactive.Render(title))
+		}
 	}
-	return brand + strings.Repeat(" ", gap) + right + "\n" + m.th.rule(cw)
+	tabs := strings.Join(items, "  ")
+	line := tabs
+	brand := m.th.brand.Render("tatemccauley.com")
+	if gap := cw - lipgloss.Width(brand) - lipgloss.Width(tabs); gap >= 2 {
+		line = brand + strings.Repeat(" ", gap) + tabs
+	}
+	return line + "\n" + m.th.rule(cw)
 }
 
 // footerBar is the rule + key hints shown at the bottom of every screen.
@@ -245,7 +346,47 @@ func (m *model) footerBar(hints string) string {
 	return m.th.rule(m.contentWidth) + "\n" + hints
 }
 
-func (m *model) viewHome() string {
+func (m *model) viewMain() string {
+	var content, hints string
+	switch m.tab {
+	case tabHome:
+		content = m.homeContent()
+		hints = m.th.hints(
+			[2]string{"←/→", "pages"},
+			[2]string{"enter", "posts"},
+			[2]string{"q", "quit"},
+		)
+	case tabBlog:
+		content = m.blogContent()
+		hints = m.th.hints(
+			[2]string{"↑/↓", "move"},
+			[2]string{"enter", "open"},
+			[2]string{"←/→", "pages"},
+			[2]string{"q", "quit"},
+		)
+	default:
+		content = m.vp.View()
+		hints = m.th.hints(
+			[2]string{"↑/↓", "scroll"},
+			[2]string{"←/→", "pages"},
+			[2]string{"q", "quit"},
+		)
+		if pct := scrollLabel(m.vp); pct != "" {
+			hints += "   " + m.th.muted.Render(pct)
+		}
+	}
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		m.navBar(),
+		"",
+		content,
+		"",
+		m.footerBar(hints),
+	)
+	return m.center(padTop(inner, topMargin))
+}
+
+func (m *model) homeContent() string {
 	cw := m.contentWidth
 
 	splash := m.th.splashBox.Render(
@@ -264,65 +405,50 @@ func (m *model) viewHome() string {
 			n = len(m.posts)
 		}
 		for i := 0; i < n; i++ {
-			p := m.posts[i]
-			marker, title := "  ", m.th.itemTitle.Render(p.title)
-			if i == 0 {
-				marker = m.th.selMarker.Render("▸ ")
-				title = m.th.selTitle.Render(p.title)
-			}
-			recent.WriteString(marker + m.th.itemDate.Render(dateCol(p)) + "  " + title)
+			recent.WriteString(m.postRow(m.posts[i], i == 0))
 			if i < n-1 {
 				recent.WriteByte('\n')
 			}
 		}
 	}
 
-	inner := lipgloss.JoinVertical(lipgloss.Left,
+	return lipgloss.JoinVertical(lipgloss.Left,
 		splash,
 		"",
 		m.homeView,
 		"",
 		recent.String(),
-		"",
-		m.footerBar(m.th.hints(
-			[2]string{"enter", "read posts"},
-			[2]string{"q", "quit"},
-		)),
 	)
-	return m.center(padTop(inner, topMargin))
 }
 
-func (m *model) viewList() string {
-	var b strings.Builder
+func (m *model) blogContent() string {
 	if len(m.posts) == 0 {
-		b.WriteString(m.th.muted.Render("(no posts yet)"))
-	} else {
-		for i, p := range m.posts {
-			marker, title := "  ", m.th.itemTitle.Render(p.title)
-			if i == m.cursor {
-				marker = m.th.selMarker.Render("▸ ")
-				title = m.th.selTitle.Render(p.title)
-			}
-			b.WriteString(marker + m.th.itemDate.Render(dateCol(p)) + "  " + title)
-			if i < len(m.posts)-1 {
-				b.WriteByte('\n')
-			}
+		return m.th.muted.Render("(no posts yet)")
+	}
+	var b strings.Builder
+	for i, p := range m.posts {
+		b.WriteString(m.postRow(p, i == m.cursor))
+		if i < len(m.posts)-1 {
+			b.WriteByte('\n')
 		}
 	}
+	return b.String()
+}
 
-	inner := lipgloss.JoinVertical(lipgloss.Left,
-		m.headerBar("posts"),
-		"",
-		b.String(),
-		"",
-		m.footerBar(m.th.hints(
-			[2]string{"↑/↓", "move"},
-			[2]string{"enter", "open"},
-			[2]string{"esc", "home"},
-			[2]string{"q", "quit"},
-		)),
-	)
-	return m.center(padTop(inner, topMargin))
+// postRow renders one list row, truncating the title so the row never grows
+// past the content column (an overwide row would break centering).
+func (m *model) postRow(p post, selected bool) string {
+	avail := m.contentWidth - 14 // marker(2) + date(10) + gap(2)
+	if avail < 8 {
+		avail = 8
+	}
+	title := runewidth.Truncate(p.title, avail, "…")
+	marker, styled := "  ", m.th.itemTitle.Render(title)
+	if selected {
+		marker = m.th.selMarker.Render("▸ ")
+		styled = m.th.selTitle.Render(title)
+	}
+	return marker + m.th.itemDate.Render(dateCol(p)) + "  " + styled
 }
 
 func (m *model) viewPost() string {
@@ -332,6 +458,7 @@ func (m *model) viewPost() string {
 	hints := m.th.hints(
 		[2]string{"↑/↓", "scroll"},
 		[2]string{"esc", "back"},
+		[2]string{"←/→", "pages"},
 		[2]string{"q", "quit"},
 	)
 	if pct := scrollLabel(m.vp); pct != "" {
@@ -339,7 +466,7 @@ func (m *model) viewPost() string {
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left,
-		m.headerBar("reading"),
+		m.navBar(),
 		"",
 		m.vp.View(),
 		"",
@@ -387,21 +514,30 @@ func main() {
 		fmt.Fprintf(os.Stderr, "load posts: %v\n", err)
 		os.Exit(1)
 	}
-	home, err := loadHome(blog.Content)
+	home, err := loadPage(blog.Content, "tui/home.md")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load home: %v\n", err)
 		os.Exit(1)
+	}
+	pages := make(map[tab]string, 3)
+	for t, name := range map[tab]string{tabAbout: "about.md", tabResume: "resume.md", tabNow: "now.md"} {
+		md, err := loadPage(blog.Content, name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load %s: %v\n", name, err)
+			os.Exit(1)
+		}
+		pages[t] = md
 	}
 
 	if *serve {
 		if *httpPort > 0 {
 			go serveStatic(fmt.Sprintf("%s:%d", *host, *httpPort), *siteDir)
 		}
-		runServer(*host, *port, *keyPath, posts, home)
+		runServer(*host, *port, *keyPath, posts, home, pages)
 		return
 	}
 
-	p := tea.NewProgram(newModel(lipgloss.DefaultRenderer(), posts, home), tea.WithAltScreen())
+	p := tea.NewProgram(newModel(lipgloss.DefaultRenderer(), posts, home, pages), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v", err)
 		os.Exit(1)

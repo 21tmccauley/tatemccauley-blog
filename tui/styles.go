@@ -25,14 +25,15 @@ var (
 type theme struct {
 	r *lipgloss.Renderer
 
-	brand, tagline, section    lipgloss.Style
-	body, muted, divider       lipgloss.Style
-	splashBox, center          lipgloss.Style
-	key, desc                  lipgloss.Style
-	itemTitle, itemDate        lipgloss.Style
-	selTitle, selMarker, crumb lipgloss.Style
-	introBox                   lipgloss.Style
-	barFilled, barEmpty        lipgloss.Style
+	brand, tagline, section lipgloss.Style
+	body, muted, divider    lipgloss.Style
+	splashBox, center       lipgloss.Style
+	key, desc               lipgloss.Style
+	itemTitle, itemDate     lipgloss.Style
+	selTitle, selMarker     lipgloss.Style
+	tabActive, tabInactive  lipgloss.Style
+	introBox                lipgloss.Style
+	barFilled, barEmpty     lipgloss.Style
 }
 
 func newTheme(r *lipgloss.Renderer) *theme {
@@ -55,7 +56,8 @@ func newTheme(r *lipgloss.Renderer) *theme {
 	t.itemDate = r.NewStyle().Foreground(mutedColor)
 	t.selTitle = r.NewStyle().Bold(true).Foreground(accentColor)
 	t.selMarker = r.NewStyle().Bold(true).Foreground(accentColor)
-	t.crumb = r.NewStyle().Foreground(mutedColor)
+	t.tabActive = r.NewStyle().Bold(true).Foreground(accentColor).Underline(true)
+	t.tabInactive = r.NewStyle().Foreground(mutedColor)
 	t.introBox = r.NewStyle().
 		Border(lipgloss.DoubleBorder()).
 		BorderForeground(accentColor).

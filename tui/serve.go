@@ -30,12 +30,12 @@ const (
 // runServer serves the blog TUI over SSH. Connections are anonymous — no
 // authentication — and each session only ever talks to a fresh Bubble Tea
 // model: there is no shell, exec, or filesystem behind the connection.
-func runServer(host string, port int, hostKeyPath string, posts []post, homeMD string) {
+func runServer(host string, port int, hostKeyPath string, posts []post, homeMD string, pages map[tab]string) {
 	teaHandler := func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		pty, _, _ := s.Pty()
 		// Bind styles to the client's session so colors reflect the visitor's
 		// terminal, not the server's stdout.
-		m := newModel(bubbletea.MakeRenderer(s), posts, homeMD)
+		m := newModel(bubbletea.MakeRenderer(s), posts, homeMD, pages)
 		m.setSize(pty.Window.Width, pty.Window.Height)
 		return m, []tea.ProgramOption{tea.WithAltScreen()}
 	}
