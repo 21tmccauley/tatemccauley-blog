@@ -258,10 +258,12 @@ func (m *model) viewPost() string {
 
 func main() {
 	var (
-		serve   = flag.Bool("serve", false, "serve the TUI over SSH instead of running it locally")
-		host    = flag.String("host", "0.0.0.0", "address to listen on (with -serve)")
-		port    = flag.Int("port", 23234, "port to listen on (with -serve)")
-		keyPath = flag.String("host-key", ".ssh/blog_host_ed25519", "SSH host key path, created on first run (with -serve)")
+		serve    = flag.Bool("serve", false, "serve the TUI over SSH instead of running it locally")
+		host     = flag.String("host", "0.0.0.0", "address to listen on (with -serve)")
+		port     = flag.Int("port", 23234, "SSH port to listen on (with -serve)")
+		keyPath  = flag.String("host-key", ".ssh/blog_host_ed25519", "SSH host key path, created on first run (with -serve)")
+		httpPort = flag.Int("http-port", 0, "also serve the built website over HTTP on this port; 0 disables (with -serve)")
+		siteDir  = flag.String("site-dir", "_site", "directory of the built Eleventy site to serve (with -http-port)")
 	)
 	flag.Parse()
 
@@ -277,6 +279,9 @@ func main() {
 	}
 
 	if *serve {
+		if *httpPort > 0 {
+			go serveStatic(fmt.Sprintf("%s:%d", *host, *httpPort), *siteDir)
+		}
 		runServer(*host, *port, *keyPath, posts, home)
 		return
 	}
