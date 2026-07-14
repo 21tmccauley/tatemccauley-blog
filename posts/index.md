@@ -2,7 +2,7 @@
 layout: base.njk
 title: Blog
 permalink: /posts/index.html
-eleventyExcludeFromCollections: true
+description: "Essays by Tate McCauley on security, compliance, and building AI-native tools — from SOC work and IT audits to FedRAMP and GRC engineering."
 ---
 
 ## Blog

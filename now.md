@@ -2,6 +2,7 @@
 layout: base.njk
 title: Now
 permalink: /now/index.html
+description: "What Tate McCauley is focused on right now — work at Paramify, projects, and life in Utah."
 ---
 ## What I'm doing now
 

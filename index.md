@@ -2,6 +2,7 @@
 layout: base.njk
 title: Home
 permalink: /
+description: "Tate McCauley is a Forward Deployed Engineer at Paramify writing about security, compliance, and the shift toward AI-native FedRAMP and GRC."
 ---
 
 ## Hey, I'm Tate.

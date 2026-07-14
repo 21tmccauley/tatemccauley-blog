@@ -1,0 +1,13 @@
+{
+  "title": "Tate McCauley",
+  "url": "https://tatemccauley.com",
+  "language": "en",
+  "description": "Tate McCauley is a Forward Deployed Engineer writing about security, compliance, and building AI-native tools for FedRAMP and GRC.",
+  "author": {
+    "name": "Tate McCauley",
+    "url": "https://tatemccauley.com/about/"
+  },
+  "feedPath": "/feed.xml",
+  "feedTitle": "Tate McCauley",
+  "image": "/assets/og-default.png"
+}
