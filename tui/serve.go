@@ -33,10 +33,10 @@ const (
 func runServer(host string, port int, hostKeyPath string, posts []post, homeMD string) {
 	teaHandler := func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		pty, _, _ := s.Pty()
-		m := newModel(posts, homeMD)
-		m.width = pty.Window.Width
-		m.height = pty.Window.Height
-		m.resizePostViewport()
+		// Bind styles to the client's session so colors reflect the visitor's
+		// terminal, not the server's stdout.
+		m := newModel(bubbletea.MakeRenderer(s), posts, homeMD)
+		m.setSize(pty.Window.Width, pty.Window.Height)
 		return m, []tea.ProgramOption{tea.WithAltScreen()}
 	}
 

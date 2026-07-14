@@ -9,6 +9,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 
 	blog "github.com/tatemccauley/tatemccauley-blog"
 )
@@ -16,13 +18,19 @@ import (
 type screen int
 
 const (
-	screenHome screen = iota
+	screenIntro screen = iota
+	screenHome
 	screenList
 	screenPost
 )
 
-// Lines reserved below the post viewport (key hint). Title + body live inside the viewport.
-const postViewFooterLines = 2
+const (
+	maxColumn = 76 // readable column cap; content is centered in the terminal
+	topMargin = 1
+	// Lines the post chrome reserves around the scrolling viewport:
+	// top(1) + header(2) + gap(1) + gap(1) + footer(2).
+	postChromeLines = 7
+)
 
 type post struct {
 	title string
@@ -31,66 +39,91 @@ type post struct {
 }
 
 type model struct {
+	th            *theme
 	vp            viewport.Model
 	width, height int
+	contentWidth  int
 	screen        screen
 	posts         []post
 	cursor        int
-	homeMarkdown  string // body from tui/home.md (optional front matter stripped)
+	frame         int    // intro animation frame counter
+	homeMarkdown  string // raw body from tui/home.md
+	homeView      string // homeMarkdown rendered via glamour at contentWidth
+	md            *glamour.TermRenderer
 }
 
-func newModel(posts []post, homeMarkdown string) *model {
+func newModel(r *lipgloss.Renderer, posts []post, homeMarkdown string) *model {
 	return &model{
+		th:           newTheme(r),
 		vp:           viewport.New(0, 0),
-		screen:       screenHome,
+		screen:       screenIntro,
 		posts:        posts,
 		homeMarkdown: homeMarkdown,
 	}
 }
 
 func (m *model) Init() tea.Cmd {
-	return nil
+	return introTickCmd()
 }
 
-func (m *model) resizePostViewport() {
-	if m.width <= 0 || m.height <= 0 {
-		return
+// setSize recomputes layout for a new terminal size: the content column, the
+// glamour renderer (wrap width, color profile) and cached home render, and the
+// post viewport dimensions.
+func (m *model) setSize(w, h int) {
+	m.width, m.height = w, h
+	cw := w - 6
+	if cw > maxColumn {
+		cw = maxColumn
 	}
-	vh := m.height - postViewFooterLines
-	if vh < 1 {
-		vh = 1
+	if cw < 20 {
+		cw = 20
 	}
-	vw := m.width
-	if vw < 1 {
-		vw = 1
+	m.contentWidth = cw
+
+	if r, err := m.th.markdownRenderer(cw); err == nil {
+		m.md = r
+		if out, err := r.Render(m.homeMarkdown); err == nil {
+			m.homeView = strings.TrimRight(out, "\n")
+		} else {
+			m.homeView = m.homeMarkdown
+		}
 	}
-	m.vp.Width = vw
-	m.vp.Height = vh
+
+	m.vp.Width = cw
+	m.vp.Height = m.postBodyHeight()
+	m.reloadPostViewportAfterResize()
 }
 
-// postViewportMarkdown returns title + body wrapped to the current viewport width
-// so lines are not truncated horizontally (viewport only splits on \n).
-func (m *model) postViewportMarkdown() string {
+func (m *model) postBodyHeight() int {
+	h := m.height - postChromeLines
+	if h < 3 {
+		h = 3
+	}
+	return h
+}
+
+// renderPostBody renders the selected post's markdown through glamour, falling
+// back to plain wrapped text if the renderer is unavailable.
+func (m *model) renderPostBody() string {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
 		return ""
 	}
-	w := m.vp.Width
-	if w < 4 {
-		w = m.width
+	body := m.posts[m.cursor].body
+	if m.md != nil {
+		if out, err := m.md.Render(body); err == nil {
+			return strings.TrimRight(out, "\n")
+		}
 	}
-	if w < 4 {
-		w = 72
-	}
-	p := m.posts[m.cursor]
-	return wrapText("Post: "+p.title, w) + "\n\n" + wrapText(p.body, w)
+	return wrapText(body, m.contentWidth)
 }
 
 func (m *model) loadPostIntoViewport() {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
 		return
 	}
-	m.resizePostViewport()
-	m.vp.SetContent(m.postViewportMarkdown())
+	m.vp.Width = m.contentWidth
+	m.vp.Height = m.postBodyHeight()
+	m.vp.SetContent(m.renderPostBody())
 	m.vp.GotoTop()
 }
 
@@ -99,20 +132,34 @@ func (m *model) reloadPostViewportAfterResize() {
 		return
 	}
 	prev := m.vp.YOffset
-	m.vp.SetContent(m.postViewportMarkdown())
+	m.vp.SetContent(m.renderPostBody())
 	m.vp.SetYOffset(prev)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.resizePostViewport()
-		m.reloadPostViewportAfterResize()
+		m.setSize(msg.Width, msg.Height)
 		return m, nil
+	case introTickMsg:
+		if m.screen != screenIntro {
+			return m, nil // skipped already; stop the tick loop
+		}
+		m.frame++
+		if m.frame > introFrames {
+			m.screen = screenHome
+			return m, nil
+		}
+		return m, introTickCmd()
 	case tea.KeyMsg:
 		switch m.screen {
+		case screenIntro:
+			switch msg.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			}
+			m.screen = screenHome // any other key skips the intro
+			return m, nil
 		case screenHome:
 			switch msg.String() {
 			case "ctrl+c", "q":
@@ -159,7 +206,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
 	switch m.screen {
+	case screenIntro:
+		return m.viewIntro()
 	case screenList:
 		return m.viewList()
 	case screenPost:
@@ -171,89 +223,152 @@ func (m *model) View() string {
 	}
 }
 
+// center places a left-aligned block in the middle of the terminal width.
+func (m *model) center(s string) string {
+	return m.th.r.PlaceHorizontal(m.width, lipgloss.Center, s)
+}
+
+// headerBar is the brand line + rule shown on the list and post screens.
+func (m *model) headerBar(crumb string) string {
+	cw := m.contentWidth
+	brand := m.th.brand.Render("tatemccauley.com")
+	right := m.th.crumb.Render(crumb)
+	gap := cw - lipgloss.Width(brand) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	return brand + strings.Repeat(" ", gap) + right + "\n" + m.th.rule(cw)
+}
+
+// footerBar is the rule + key hints shown at the bottom of every screen.
+func (m *model) footerBar(hints string) string {
+	return m.th.rule(m.contentWidth) + "\n" + hints
+}
+
 func (m *model) viewHome() string {
-	var b strings.Builder
-	if strings.TrimSpace(m.homeMarkdown) != "" {
-		if m.width > 0 {
-			b.WriteString(wrapText(m.homeMarkdown, m.width))
-		} else {
-			b.WriteString(m.homeMarkdown)
-		}
+	cw := m.contentWidth
+
+	splash := m.th.splashBox.Render(
+		m.th.brand.Render("Tate McCauley") + "\n" +
+			m.th.tagline.Render("the terminal edition"))
+	splash = m.th.center.Width(cw).Render(splash)
+
+	var recent strings.Builder
+	recent.WriteString(m.th.section.Render("RECENT"))
+	recent.WriteByte('\n')
+	if len(m.posts) == 0 {
+		recent.WriteString(m.th.muted.Render("(no posts yet)"))
 	} else {
-		b.WriteString("(home.md missing or empty)\n")
-	}
-	b.WriteString("\n\n—\n")
-	if n := len(m.posts); n > 0 {
-		b.WriteString("Recent posts:\n")
-		max := 3
-		if n < max {
-			max = n
+		n := 3
+		if len(m.posts) < n {
+			n = len(m.posts)
 		}
-		for i := 0; i < max; i++ {
-			title := m.posts[i].title
-			if m.width > 0 {
-				title = wrapText("  • "+title, m.width)
-			} else {
-				title = "  • " + title
+		for i := 0; i < n; i++ {
+			p := m.posts[i]
+			marker, title := "  ", m.th.itemTitle.Render(p.title)
+			if i == 0 {
+				marker = m.th.selMarker.Render("▸ ")
+				title = m.th.selTitle.Render(p.title)
 			}
-			b.WriteString(title)
-			b.WriteString("\n")
+			recent.WriteString(marker + m.th.itemDate.Render(dateCol(p)) + "  " + title)
+			if i < n-1 {
+				recent.WriteByte('\n')
+			}
 		}
 	}
-	hint := "\np / Enter — all posts • q — quit\n"
-	if m.width > 0 {
-		b.WriteString("\n")
-		b.WriteString(wrapText(strings.TrimSpace(hint), m.width))
-		b.WriteString("\n")
-	} else {
-		b.WriteString(hint)
-	}
-	return b.String()
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		splash,
+		"",
+		m.homeView,
+		"",
+		recent.String(),
+		"",
+		m.footerBar(m.th.hints(
+			[2]string{"enter", "read posts"},
+			[2]string{"q", "quit"},
+		)),
+	)
+	return m.center(padTop(inner, topMargin))
 }
 
 func (m *model) viewList() string {
 	var b strings.Builder
-	b.WriteString("Posts\n\n")
 	if len(m.posts) == 0 {
-		b.WriteString("(no posts)\n")
+		b.WriteString(m.th.muted.Render("(no posts yet)"))
 	} else {
 		for i, p := range m.posts {
-			prefix := "  "
+			marker, title := "  ", m.th.itemTitle.Render(p.title)
 			if i == m.cursor {
-				prefix = "> "
+				marker = m.th.selMarker.Render("▸ ")
+				title = m.th.selTitle.Render(p.title)
 			}
-			line := prefix + p.title
-			if !p.date.IsZero() {
-				line = prefix + p.date.Format("2006-01-02") + "  " + p.title
+			b.WriteString(marker + m.th.itemDate.Render(dateCol(p)) + "  " + title)
+			if i < len(m.posts)-1 {
+				b.WriteByte('\n')
 			}
-			if m.width > 0 {
-				line = wrapText(line, m.width)
-			}
-			b.WriteString(line)
-			b.WriteString("\n")
 		}
 	}
-	hint := "\n↑/↓ or j/k move • enter open • esc home • q quit\n"
-	if m.width > 0 {
-		b.WriteString("\n")
-		b.WriteString(wrapText(strings.TrimSpace(hint), m.width))
-		b.WriteString("\n")
-	} else {
-		b.WriteString(hint)
-	}
-	return b.String()
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		m.headerBar("posts"),
+		"",
+		b.String(),
+		"",
+		m.footerBar(m.th.hints(
+			[2]string{"↑/↓", "move"},
+			[2]string{"enter", "open"},
+			[2]string{"esc", "home"},
+			[2]string{"q", "quit"},
+		)),
+	)
+	return m.center(padTop(inner, topMargin))
 }
 
 func (m *model) viewPost() string {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
-		return "Invalid post selected"
+		return m.center("Invalid post")
 	}
-	scrollHint := "↑/↓ j/k • PgUp/PgDn • esc list • q quit"
-	if m.width > 0 && m.height > 0 {
-		return m.vp.View() + "\n\n" + wrapText(scrollHint, m.width)
+	hints := m.th.hints(
+		[2]string{"↑/↓", "scroll"},
+		[2]string{"esc", "back"},
+		[2]string{"q", "quit"},
+	)
+	if pct := scrollLabel(m.vp); pct != "" {
+		hints += "   " + m.th.muted.Render(pct)
 	}
-	p := m.posts[m.cursor]
-	return fmt.Sprintf("Post: %s\n\n%s\n\n%s", p.title, p.body, scrollHint)
+
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		m.headerBar("reading"),
+		"",
+		m.vp.View(),
+		"",
+		m.footerBar(hints),
+	)
+	return m.center(padTop(inner, topMargin))
+}
+
+// dateCol formats a post date as a fixed-width column so titles align; a
+// missing date becomes blank padding of the same width.
+func dateCol(p post) string {
+	if p.date.IsZero() {
+		return "          " // 10 spaces == len("2006-01-02")
+	}
+	return p.date.Format("2006-01-02")
+}
+
+func scrollLabel(vp viewport.Model) string {
+	if vp.AtTop() && vp.AtBottom() {
+		return ""
+	}
+	return fmt.Sprintf("%3.0f%%", vp.ScrollPercent()*100)
+}
+
+func padTop(s string, n int) string {
+	if n <= 0 {
+		return s
+	}
+	return strings.Repeat("\n", n) + s
 }
 
 func main() {
@@ -286,7 +401,7 @@ func main() {
 		return
 	}
 
-	p := tea.NewProgram(newModel(posts, home), tea.WithAltScreen())
+	p := tea.NewProgram(newModel(lipgloss.DefaultRenderer(), posts, home), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v", err)
 		os.Exit(1)
