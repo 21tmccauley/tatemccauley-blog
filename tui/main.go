@@ -1,13 +1,16 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	blog "github.com/tatemccauley/tatemccauley-blog"
 )
 
 type screen int
@@ -23,17 +26,26 @@ const postViewFooterLines = 2
 
 type post struct {
 	title string
-	body string
+	date  time.Time
+	body  string
 }
 
 type model struct {
-	vp viewport.Model
+	vp            viewport.Model
 	width, height int
 	screen        screen
 	posts         []post
 	cursor        int
-	homeCursor    int
 	homeMarkdown  string // body from tui/home.md (optional front matter stripped)
+}
+
+func newModel(posts []post, homeMarkdown string) *model {
+	return &model{
+		vp:           viewport.New(0, 0),
+		screen:       screenHome,
+		posts:        posts,
+		homeMarkdown: homeMarkdown,
+	}
 }
 
 func (m *model) Init() tea.Cmd {
@@ -108,10 +120,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter", "p":
 				m.screen = screenList
 			}
-			// Some terminals send Enter as KeyEnter (CR) without matching "enter" in edge cases.
-			if msg.Type == tea.KeyEnter {
-				m.screen = screenList
-			}
 			return m, nil
 		case screenList:
 			switch msg.String() {
@@ -132,10 +140,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "esc":
 				m.screen = screenHome
-			}
-			if m.screen == screenList && msg.Type == tea.KeyEnter && len(m.posts) > 0 {
-				m.screen = screenPost
-				m.loadPostIntoViewport()
 			}
 		case screenPost:
 			switch msg.String() {
@@ -219,6 +223,9 @@ func (m *model) viewList() string {
 				prefix = "> "
 			}
 			line := prefix + p.title
+			if !p.date.IsZero() {
+				line = prefix + p.date.Format("2006-01-02") + "  " + p.title
+			}
 			if m.width > 0 {
 				line = wrapText(line, m.width)
 			}
@@ -250,28 +257,31 @@ func (m *model) viewPost() string {
 }
 
 func main() {
-	repoRoot := ".."
-	postsDir := filepath.Join(repoRoot, "posts")
-	posts, err := loadPosts(postsDir)
+	var (
+		serve   = flag.Bool("serve", false, "serve the TUI over SSH instead of running it locally")
+		host    = flag.String("host", "0.0.0.0", "address to listen on (with -serve)")
+		port    = flag.Int("port", 23234, "port to listen on (with -serve)")
+		keyPath = flag.String("host-key", ".ssh/blog_host_ed25519", "SSH host key path, created on first run (with -serve)")
+	)
+	flag.Parse()
+
+	posts, err := loadPosts(blog.Content)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "load posts from %s: %v\n", postsDir, err)
+		fmt.Fprintf(os.Stderr, "load posts: %v\n", err)
+		os.Exit(1)
+	}
+	home, err := loadHome(blog.Content)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "load home: %v\n", err)
 		os.Exit(1)
 	}
 
-	homePath := filepath.Join(".", "home.md")
-	homeMd, err := loadTUIHome(homePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "load home from %s (run from the tui/ directory): %v\n", homePath, err)
-		os.Exit(1)
+	if *serve {
+		runServer(*host, *port, *keyPath, posts, home)
+		return
 	}
 
-	m0 := &model{
-		vp:           viewport.New(0, 0),
-		screen:       screenHome,
-		posts:        posts,
-		homeMarkdown: homeMd,
-	}
-	p := tea.NewProgram(m0, tea.WithAltScreen())
+	p := tea.NewProgram(newModel(posts, home), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v", err)
 		os.Exit(1)
