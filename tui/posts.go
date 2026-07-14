@@ -3,6 +3,7 @@ package main
 import (
 	"io/fs"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -79,12 +80,25 @@ func parseMeta(meta string) (title string, date time.Time) {
 	return title, date
 }
 
-// loadHome reads the TUI-only home markdown, stripping optional front matter.
-func loadHome(fsys fs.FS) (string, error) {
-	b, err := fs.ReadFile(fsys, "tui/home.md")
+// loadPage reads a standalone page's markdown, stripping front matter and the
+// raw HTML the web layout needs but a terminal can't render.
+func loadPage(fsys fs.FS, name string) (string, error) {
+	b, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		return "", err
 	}
 	_, body := splitFrontMatter(string(b))
-	return body, nil
+	return sanitizePage(body), nil
+}
+
+var (
+	// The resume uses spacer spans to push dates right on the website; in a
+	// terminal a separator dot reads better than the leftover double space.
+	spacerRe  = regexp.MustCompile(`\s*<span class="spacer"></span>\s*`)
+	htmlTagRe = regexp.MustCompile(`</?(?:div|span)[^>]*>`)
+)
+
+func sanitizePage(s string) string {
+	s = spacerRe.ReplaceAllString(s, " · ")
+	return htmlTagRe.ReplaceAllString(s, "")
 }

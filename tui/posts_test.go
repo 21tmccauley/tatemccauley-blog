@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -41,6 +42,37 @@ func TestParseMeta(t *testing.T) {
 	}
 	if got := date.Format("2006-01-02"); got != "2026-07-10" {
 		t.Errorf("date = %s", got)
+	}
+}
+
+func TestLoadPageStripsFrontMatterAndHTML(t *testing.T) {
+	fsys := fstest.MapFS{
+		"resume.md": {Data: []byte(`---
+title: Resume
+---
+
+# Tate McCauley
+
+<div class="section headerInfo">
+
+- tatemccauley@gmail.com
+
+</div>
+
+### Cybersecurity <span class="spacer"></span> Apr 2026`)},
+	}
+	got, err := loadPage(fsys, "resume.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "<") || strings.Contains(got, ">") {
+		t.Errorf("HTML tags survived sanitizing:\n%s", got)
+	}
+	if !strings.Contains(got, "### Cybersecurity · Apr 2026") {
+		t.Errorf("spacer span not replaced with separator:\n%s", got)
+	}
+	if strings.Contains(got, "title: Resume") {
+		t.Errorf("front matter not stripped:\n%s", got)
 	}
 }
 
