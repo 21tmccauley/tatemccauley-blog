@@ -3,18 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} | Tate McCauley</title>
+    {% set isPost = page.url | isPostUrl %}
+    {% set pageDescription = description or excerpt or metadata.description %}
+    {% set canonicalUrl = metadata.url + page.url %}
+    {% set socialImage = metadata.url + (image or metadata.image) %}
 
-    <meta name="description" content="{{ description or 'A personal blog by Tate McCauley' }}">
+    <title>{{ title }} | {{ metadata.title }}</title>
+    <meta name="description" content="{{ pageDescription }}">
+    <meta name="author" content="{{ metadata.author.name }}">
+    <link rel="canonical" href="{{ canonicalUrl }}">
 
-    <meta property="og:title" content="{{ title }} | Tate McCauley">
-    <meta property="og:description" content="{{ description or 'A personal blog by Tate McCauley' }}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://tatemccauley.com{{ page.url }}">
-    <meta property="twitter:card" content="summary">
-    <meta property="twitter:url" content="https://tatemccauley.com{{ page.url }}">
-    <meta property="twitter:title" content="{{ title }} | Tate McCauley">
-    <meta property="twitter:description" content="{{ description or 'A personal blog by Tate McCauley' }}">
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="{{ metadata.title }}">
+    <meta property="og:title" content="{{ title }} | {{ metadata.title }}">
+    <meta property="og:description" content="{{ pageDescription }}">
+    <meta property="og:type" content="{{ 'article' if isPost else 'website' }}">
+    <meta property="og:url" content="{{ canonicalUrl }}">
+    <meta property="og:image" content="{{ socialImage }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ metadata.title }}">
+    {%- if isPost %}
+    <meta property="article:published_time" content="{{ page.date | rfc3339 }}">
+    <meta property="article:author" content="{{ metadata.author.name }}">
+    {%- endif %}
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ canonicalUrl }}">
+    <meta name="twitter:title" content="{{ title }} | {{ metadata.title }}">
+    <meta name="twitter:description" content="{{ pageDescription }}">
+    <meta name="twitter:image" content="{{ socialImage }}">
+
+    <!-- Feed autodiscovery -->
+    <link rel="alternate" type="application/atom+xml" title="{{ metadata.title }}" href="{{ metadata.url }}{{ metadata.feedPath }}">
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+    {%- if isPost %}
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": {{ title | dump | safe }},
+      "description": {{ pageDescription | dump | safe }},
+      "datePublished": {{ page.date | rfc3339 | dump | safe }},
+      "dateModified": {{ page.date | rfc3339 | dump | safe }},
+      "url": {{ canonicalUrl | dump | safe }},
+      "mainEntityOfPage": { "@type": "WebPage", "@id": {{ canonicalUrl | dump | safe }} },
+      "image": {{ socialImage | dump | safe }},
+      "author": { "@type": "Person", "name": {{ metadata.author.name | dump | safe }}, "url": {{ metadata.author.url | dump | safe }} },
+      "publisher": { "@type": "Person", "name": {{ metadata.author.name | dump | safe }} }
+    }
+    {%- else %}
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": {{ metadata.title | dump | safe }},
+      "description": {{ metadata.description | dump | safe }},
+      "url": {{ metadata.url | dump | safe }},
+      "author": { "@type": "Person", "name": {{ metadata.author.name | dump | safe }}, "url": {{ metadata.author.url | dump | safe }} }
+    }
+    {%- endif %}
+    </script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
