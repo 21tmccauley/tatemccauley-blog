@@ -1,0 +1,13 @@
+# The image builds _site and the binary from source — never copy local artifacts.
+node_modules
+_site
+blog-ssh
+tui/tui
+.ssh
+
+# VCS / tooling / editor cruft
+.git
+.github
+.vscode
+.DS_Store
+*.log
