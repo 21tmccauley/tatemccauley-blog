@@ -50,6 +50,12 @@ const (
 	// Lines the chrome reserves around the scrolling viewport:
 	// top(1) + nav(2) + gap(1) + gap(1) + footer(2).
 	chromeLines = 7
+	// Sessions are anonymous, so the client-reported window size is untrusted.
+	// A real terminal never approaches these bounds; clamping stops a forged
+	// window-change (dimensions can be up to 2^32) from driving a multi-gigabyte
+	// padding allocation and OOM-killing the machine.
+	maxWidth  = 500
+	maxHeight = 300
 )
 
 type post struct {
@@ -97,7 +103,18 @@ func (m *model) Init() tea.Cmd {
 // glamour renderer (wrap width, color profile) and cached page renders, and
 // the viewport dimensions.
 func (m *model) setSize(w, h int) {
-	m.width, m.height = w, h
+	if w < 0 {
+		w = 0
+	}
+	if h < 0 {
+		h = 0
+	}
+	if w > maxWidth {
+		w = maxWidth
+	}
+	if h > maxHeight {
+		h = maxHeight
+	}
 	cw := w - 6
 	if cw > maxColumn {
 		cw = maxColumn
@@ -105,14 +122,23 @@ func (m *model) setSize(w, h int) {
 	if cw < 20 {
 		cw = 20
 	}
+
+	// The glamour renders below are the expensive part; they depend only on the
+	// content width, so a height-only resize (or repeated identical events)
+	// skips them. The renderer and cached views persist from the last width, so
+	// this is a no-op only when they already exist.
+	widthChanged := cw != m.contentWidth || m.md == nil
+	m.width, m.height = w, h
 	m.contentWidth = cw
 
-	if r, err := m.th.markdownRenderer(cw); err == nil {
-		m.md = r
-	}
-	m.homeView = m.renderMarkdown(m.homeMarkdown)
-	for t, md := range m.pageMD {
-		m.pageView[t] = m.renderMarkdown(md)
+	if widthChanged {
+		if r, err := m.th.markdownRenderer(cw); err == nil {
+			m.md = r
+		}
+		m.homeView = m.renderMarkdown(m.homeMarkdown)
+		for t, md := range m.pageMD {
+			m.pageView[t] = m.renderMarkdown(md)
+		}
 	}
 
 	m.vp.Width = cw
