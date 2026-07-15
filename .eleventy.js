@@ -24,6 +24,12 @@ module.exports = function(eleventyConfig) {
   // Add a shortcode for the current year
   eleventyConfig.addShortcode("year", () => `${new Date().getFullYear()}`);
 
+  // Estimated reading time in minutes, from rendered post HTML
+  eleventyConfig.addFilter("readingTime", (content) => {
+    const words = String(content).replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+    return Math.max(1, Math.round(words / 220));
+  });
+
   // Copy static assets (OG image, etc.) straight through to the build
   eleventyConfig.addPassthroughCopy("assets");
 

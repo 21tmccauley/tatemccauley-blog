@@ -16,7 +16,8 @@ You can learn more [about me](/about/), view my [resume](/resume/), or see what 
 ## Recent Posts
 
 <ul class="clean-list no-underline bold-links">
-{%- for post in collections.post | reverse | limit(3) -%}
+{%- assign newest = collections.post | reverse -%}
+{%- for post in newest limit: 6 -%}
   <li>
     <a href="{{ post.url | url }}">{{ post.data.title }}</a>
     <time class="muted" datetime="{{ post.date | isoDate }}">{{ post.date | readableDate }}</time>

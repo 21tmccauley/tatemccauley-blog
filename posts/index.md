@@ -7,21 +7,19 @@ description: "Essays by Tate McCauley on security, compliance, and building AI-n
 
 ## Blog
 
+<p class="muted">{{ collections.post | size }} posts, newest first</p>
+
 <ul class="post-list">
-{%- for post in collections.post | reverse -%}
+{%- assign newest = collections.post | reverse -%}
+{%- for post in newest -%}
   <li class="post-entry">
-    <a href="{{ post.url | url }}" class="post-title">{{ post.data.title }}</a>
     <p class="post-meta">
         <time datetime="{{ post.date | isoDate }}">{{ post.date | readableDate }}</time>
     </p>
-
-    {% if post.data.excerpt %}
-        <p class="post-excerpt">
-            {{ post.data.excerpt }}
-        </p>
-        <a href="{{ post.url | url }}" class="read-more">Read more...</a>
-    {% endif %}
-
+    <a href="{{ post.url | url }}" class="post-title">{{ post.data.title }}</a>
+    {%- if post.data.excerpt %}
+    <p class="post-excerpt">{{ post.data.excerpt }}</p>
+    {%- endif %}
   </li>
 {%- endfor -%}
 </ul>
