@@ -33,12 +33,26 @@ func loadPosts(fsys fs.FS) ([]post, error) {
 		if title == "" {
 			title = strings.TrimSuffix(base, path.Ext(base))
 		}
-		posts = append(posts, post{title: title, date: date, body: body})
+		posts = append(posts, post{title: title, date: date, body: stripLeadingH1(body)})
 	}
 	slices.SortStableFunc(posts, func(a, b post) int {
 		return b.date.Compare(a.date)
 	})
 	return posts, nil
+}
+
+// stripLeadingH1 drops a body's opening H1. Every post restates its title
+// there for the web layout, and the post screen pins that title in the card, so
+// leaving it would show the same heading twice.
+func stripLeadingH1(body string) string {
+	if !strings.HasPrefix(body, "# ") {
+		return body
+	}
+	_, rest, ok := strings.Cut(body, "\n")
+	if !ok {
+		return ""
+	}
+	return strings.TrimLeft(rest, "\n")
 }
 
 // splitFrontMatter separates a leading YAML block delimited by --- lines from

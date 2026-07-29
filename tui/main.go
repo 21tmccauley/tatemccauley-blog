@@ -39,17 +39,7 @@ const (
 
 var tabTitles = [tabCount]string{"Home", "Blog", "About", "Resume", "Now"}
 
-// isPage reports whether the tab shows a standalone markdown page in the
-// scrolling viewport (as opposed to Home and Blog, which compose their own
-// content).
-func (t tab) isPage() bool { return t == tabAbout || t == tabResume || t == tabNow }
-
 const (
-	maxColumn = 76 // readable column cap; content is centered in the terminal
-	topMargin = 1
-	// Lines the chrome reserves around the scrolling viewport:
-	// top(1) + nav(2) + gap(1) + gap(1) + footer(2).
-	chromeLines = 7
 	// Sessions are anonymous, so the client-reported window size is untrusted.
 	// A real terminal never approaches these bounds; clamping stops a forged
 	// window-change (dimensions can be up to 2^32) from driving a multi-gigabyte
@@ -69,16 +59,18 @@ type model struct {
 	vp            viewport.Model
 	width, height int
 	contentWidth  int
+	padX          int // card padding at the current width
+	hintLines     int // rows the footer needs; it wraps on a narrow card
 	screen        screen
 	tab           tab
 	posts         []post
 	cursor        int
 	frame         int            // intro animation frame counter
 	homeMarkdown  string         // raw body from tui/home.md
-	homeView      string         // homeMarkdown rendered via glamour at contentWidth
+	homeView      string         // homeMarkdown rendered via glamour at textWidth
 	pageMD        map[tab]string // raw markdown for the About/Resume/Now tabs
-	pageView      map[tab]string // pageMD rendered via glamour at contentWidth
-	pageScroll    map[tab]int    // saved offsets so each page keeps its place
+	pageView      map[tab]string // pageMD rendered via glamour at textWidth
+	tabScroll     map[tab]int    // saved offsets so each tab keeps its place
 	md            *glamour.TermRenderer
 }
 
@@ -91,7 +83,7 @@ func newModel(r *lipgloss.Renderer, posts []post, homeMarkdown string, pages map
 		homeMarkdown: homeMarkdown,
 		pageMD:       pages,
 		pageView:     make(map[tab]string, len(pages)),
-		pageScroll:   make(map[tab]int, len(pages)),
+		tabScroll:    make(map[tab]int, tabCount),
 	}
 }
 
@@ -99,7 +91,7 @@ func (m *model) Init() tea.Cmd {
 	return introTickCmd()
 }
 
-// setSize recomputes layout for a new terminal size: the content column, the
+// setSize recomputes layout for a new terminal size: the card geometry, the
 // glamour renderer (wrap width, color profile) and cached page renders, and
 // the viewport dimensions.
 func (m *model) setSize(w, h int) {
@@ -115,13 +107,7 @@ func (m *model) setSize(w, h int) {
 	if h > maxHeight {
 		h = maxHeight
 	}
-	cw := w - 6
-	if cw > maxColumn {
-		cw = maxColumn
-	}
-	if cw < 20 {
-		cw = 20
-	}
+	cw, padX := cardLayout(w)
 
 	// The glamour renders below are the expensive part; they depend only on the
 	// content width, so a height-only resize (or repeated identical events)
@@ -129,10 +115,11 @@ func (m *model) setSize(w, h int) {
 	// this is a no-op only when they already exist.
 	widthChanged := cw != m.contentWidth || m.md == nil
 	m.width, m.height = w, h
-	m.contentWidth = cw
+	m.contentWidth, m.padX = cw, padX
+	m.measureChrome()
 
 	if widthChanged {
-		if r, err := m.th.markdownRenderer(cw); err == nil {
+		if r, err := m.th.markdownRenderer(m.textWidth()); err == nil {
 			m.md = r
 		}
 		m.homeView = m.renderMarkdown(m.homeMarkdown)
@@ -140,16 +127,25 @@ func (m *model) setSize(w, h int) {
 			m.pageView[t] = m.renderMarkdown(md)
 		}
 	}
-
-	m.vp.Width = cw
-	m.vp.Height = m.viewportHeight()
-	m.reloadViewportAfterResize()
+	m.syncViewport(m.vp.YOffset)
 }
 
-func (m *model) viewportHeight() int {
-	h := m.height - chromeLines
-	if h < 3 {
-		h = 3
+// bodyHeight sizes the viewport to the content it is about to hold, capped by
+// what the terminal leaves once the chrome is paid for. This is what makes the
+// card hug a short screen instead of stretching to the bottom of the pane, and
+// grow to fill it on a long post. Content never depends on this height, so
+// there is no circularity in measuring it first.
+func (m *model) bodyHeight(body string) int {
+	avail := m.height - 2*cardMargY - m.chromeHeight()
+	if avail < minBody {
+		avail = minBody
+	}
+	h := lipgloss.Height(body)
+	if h > avail {
+		h = avail
+	}
+	if h < 1 {
+		h = 1
 	}
 	return h
 }
@@ -162,7 +158,7 @@ func (m *model) renderMarkdown(s string) string {
 			return strings.TrimRight(out, "\n")
 		}
 	}
-	return wrapText(s, m.contentWidth)
+	return wrapText(s, m.textWidth())
 }
 
 func (m *model) renderPostBody() string {
@@ -172,49 +168,99 @@ func (m *model) renderPostBody() string {
 	return m.renderMarkdown(m.posts[m.cursor].body)
 }
 
-func (m *model) loadPostIntoViewport() {
+// bodyFor returns the content for the current screen and tab. Every view goes
+// through the viewport, so the card sizes itself to its content and can never
+// outgrow the terminal however much content a screen holds.
+func (m *model) bodyFor() string {
+	return m.padBlock(m.rawBodyFor())
+}
+
+func (m *model) rawBodyFor() string {
+	if m.screen == screenPost {
+		return m.renderPostBody()
+	}
+	switch m.tab {
+	case tabHome:
+		return m.homeContent()
+	case tabBlog:
+		return m.blogContent()
+	default:
+		return m.pageView[m.tab]
+	}
+}
+
+// padBlock pads every line of a body out to the text column with the card
+// background. Two things downstream pad short lines with *unstyled* space,
+// which shows the visitor's terminal through the middle of the card:
+// viewport.View renders through a background-less lipgloss style, and
+// JoinVertical pads with bare strings.Repeat(" "). Glamour output already
+// arrives full width, so this is a no-op there and matters for the rows this
+// package composes itself — list rows, section headings, the splash.
+func (m *model) padBlock(s string) string {
+	tw := m.textWidth()
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		lines[i] = ln + m.th.pad(tw-lipgloss.Width(ln))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// enterMain leaves the boot screen for the home tab, filling the viewport the
+// intro has no use for.
+func (m *model) enterMain() {
+	m.screen = screenMain
+	m.syncViewport(0)
+}
+
+// syncViewport reloads the viewport for the current view and scrolls it to off.
+// The offset is applied after the new content, because viewport.SetYOffset
+// clamps against whatever it currently holds: setting it first would measure a
+// restored position against the view being left, and silently truncate it to
+// zero whenever that view happened to fit on one screen.
+func (m *model) syncViewport(off int) {
+	body := m.bodyFor()
+	m.vp.Width = m.textWidth()
+	m.vp.Height = m.bodyHeight(body)
+	m.vp.SetContent(body)
+	m.vp.SetYOffset(off)
+	if m.screen == screenMain && m.tab == tabBlog {
+		m.revealCursor()
+	}
+}
+
+// revealCursor scrolls the post list just far enough to keep the selected row
+// on screen.
+func (m *model) revealCursor() {
+	row := m.cursor
+	switch {
+	case row < m.vp.YOffset:
+		m.vp.SetYOffset(row)
+	case row >= m.vp.YOffset+m.vp.Height:
+		m.vp.SetYOffset(row - m.vp.Height + 1)
+	}
+}
+
+func (m *model) openPost() {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
 		return
 	}
-	m.vp.Width = m.contentWidth
-	m.vp.Height = m.viewportHeight()
-	m.vp.SetContent(m.renderPostBody())
-	m.vp.GotoTop()
-}
-
-func (m *model) reloadViewportAfterResize() {
-	prev := m.vp.YOffset
-	switch {
-	case m.screen == screenPost:
-		if m.cursor < 0 || m.cursor >= len(m.posts) {
-			return
-		}
-		m.vp.SetContent(m.renderPostBody())
-	case m.screen == screenMain && m.tab.isPage():
-		m.vp.SetContent(m.pageView[m.tab])
-	default:
-		return
-	}
-	m.vp.SetYOffset(prev)
+	m.tabScroll[tabBlog] = m.vp.YOffset // so esc returns the list as it was
+	m.screen = screenPost
+	m.syncViewport(0)
 }
 
 // switchTab moves the nav selection from any screen, saving and restoring
-// page scroll positions so each tab keeps its place.
+// scroll positions so each tab keeps its place.
 func (m *model) switchTab(t tab) {
 	if t < 0 || t >= tabCount || (t == m.tab && m.screen == screenMain) {
 		return
 	}
-	if m.screen == screenMain && m.tab.isPage() {
-		m.pageScroll[m.tab] = m.vp.YOffset
+	if m.screen == screenMain {
+		m.tabScroll[m.tab] = m.vp.YOffset
 	}
 	m.screen = screenMain
 	m.tab = t
-	if t.isPage() {
-		m.vp.Width = m.contentWidth
-		m.vp.Height = m.viewportHeight()
-		m.vp.SetContent(m.pageView[t])
-		m.vp.SetYOffset(m.pageScroll[t])
-	}
+	m.syncViewport(m.tabScroll[t])
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -228,7 +274,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.frame++
 		if m.frame > introFrames {
-			m.screen = screenMain
+			m.enterMain()
 			return m, nil
 		}
 		return m, introTickCmd()
@@ -239,7 +285,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "q":
 				return m, tea.Quit
 			}
-			m.screen = screenMain // any other key skips the intro
+			m.enterMain() // any other key skips the intro
 			return m, nil
 		case screenMain:
 			return m.updateMain(msg)
@@ -281,32 +327,62 @@ func (m *model) updateMain(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.tab {
+	case tabBlog:
+		// The list is driven entirely by the cursor, and every key that could
+		// move the view has to move the cursor with it. Handing leftovers to the
+		// viewport instead would let its own pgdn/space/d bindings scroll the
+		// selection off screen, and then enter opens a post the reader cannot
+		// see. So the list consumes every key it does not act on.
+		switch key {
+		case "up", "k":
+			m.moveCursor(-1)
+		case "down", "j":
+			m.moveCursor(1)
+		case "pgup", "b":
+			m.moveCursor(-m.vp.Height)
+		case "pgdown", "f", " ":
+			m.moveCursor(m.vp.Height)
+		case "home", "g":
+			m.moveCursor(-len(m.posts))
+		case "end", "G":
+			m.moveCursor(len(m.posts))
+		case "enter":
+			if len(m.posts) > 0 {
+				m.openPost()
+			}
+		}
+		return m, nil
 	case tabHome:
 		if key == "enter" || key == "p" {
 			m.switchTab(tabBlog)
+			return m, nil
 		}
-	case tabBlog:
-		switch key {
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case "down", "j":
-			if m.cursor < len(m.posts)-1 {
-				m.cursor++
-			}
-		case "enter":
-			if len(m.posts) > 0 {
-				m.screen = screenPost
-				m.loadPostIntoViewport()
-			}
-		}
-	default: // page tabs scroll in the viewport
-		var cmd tea.Cmd
-		m.vp, cmd = m.vp.Update(msg)
-		return m, cmd
 	}
-	return m, nil
+
+	// Anything left over scrolls the viewport.
+	var cmd tea.Cmd
+	m.vp, cmd = m.vp.Update(msg)
+	return m, cmd
+}
+
+// moveCursor shifts the post-list selection by delta, clamped to the list, and
+// scrolls just enough to keep it visible.
+func (m *model) moveCursor(delta int) {
+	if len(m.posts) == 0 {
+		return
+	}
+	next := m.cursor + delta
+	if next < 0 {
+		next = 0
+	}
+	if next > len(m.posts)-1 {
+		next = len(m.posts) - 1
+	}
+	if next == m.cursor {
+		return
+	}
+	m.cursor = next
+	m.syncViewport(m.vp.YOffset)
 }
 
 func (m *model) updatePost(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -316,6 +392,7 @@ func (m *model) updatePost(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "esc":
 		m.screen = screenMain
+		m.syncViewport(m.tabScroll[m.tab])
 		return m, nil
 	}
 	if m.handleNavKey(key) {
@@ -340,88 +417,30 @@ func (m *model) View() string {
 	}
 }
 
-// center places a left-aligned block in the middle of the terminal width.
-func (m *model) center(s string) string {
-	return m.th.r.PlaceHorizontal(m.width, lipgloss.Center, s)
-}
-
-// navBar mirrors the website's global header: brand on the left, page tabs on
-// the right with the active one highlighted. On terminals too narrow for
-// both, the brand is dropped so the tabs stay on one line.
-func (m *model) navBar() string {
-	cw := m.contentWidth
-	items := make([]string, 0, tabCount)
-	for i, title := range tabTitles {
-		if tab(i) == m.tab {
-			items = append(items, m.th.tabActive.Render(title))
-		} else {
-			items = append(items, m.th.tabInactive.Render(title))
-		}
-	}
-	tabs := strings.Join(items, "  ")
-	line := tabs
-	brand := m.th.brand.Render("tatemccauley.com")
-	if gap := cw - lipgloss.Width(brand) - lipgloss.Width(tabs); gap >= 2 {
-		line = brand + strings.Repeat(" ", gap) + tabs
-	}
-	return line + "\n" + m.th.rule(cw)
-}
-
-// footerBar is the rule + key hints shown at the bottom of every screen.
-func (m *model) footerBar(hints string) string {
-	return m.th.rule(m.contentWidth) + "\n" + hints
-}
-
 func (m *model) viewMain() string {
-	var content, hints string
+	hints := pageHints
 	switch m.tab {
 	case tabHome:
-		content = m.homeContent()
-		hints = m.th.hints(
-			[2]string{"←/→", "pages"},
-			[2]string{"enter", "posts"},
-			[2]string{"q", "quit"},
-		)
+		hints = homeHints
 	case tabBlog:
-		content = m.blogContent()
-		hints = m.th.hints(
-			[2]string{"↑/↓", "move"},
-			[2]string{"enter", "open"},
-			[2]string{"←/→", "pages"},
-			[2]string{"q", "quit"},
-		)
-	default:
-		content = m.vp.View()
-		hints = m.th.hints(
-			[2]string{"↑/↓", "scroll"},
-			[2]string{"←/→", "pages"},
-			[2]string{"q", "quit"},
-		)
-		if pct := scrollLabel(m.vp); pct != "" {
-			hints += "   " + m.th.muted.Render(pct)
-		}
+		hints = blogHints
 	}
-
-	inner := lipgloss.JoinVertical(lipgloss.Left,
-		m.navBar(),
-		"",
-		content,
-		"",
-		m.footerBar(hints),
-	)
-	return m.center(padTop(inner, topMargin))
+	return m.card(m.scrollbar(m.vp.View()), m.th.hints(hints...))
 }
 
 func (m *model) homeContent() string {
-	cw := m.contentWidth
+	tw := m.textWidth()
 
-	splash := m.th.splashBox.Render(
-		m.th.brand.Render("Tate McCauley") + "\n" +
+	// No bordered splash here: the card is already a frame, and a box inside a
+	// box reads as clutter. The wordmark carries it on its own.
+	splash := m.th.center.Width(tw).Render(
+		m.th.brand.Render(letterSpace("TATE McCAULEY")) + "\n" +
 			m.th.tagline.Render("the terminal edition"))
-	splash = m.th.center.Width(cw).Render(splash)
 
 	var recent strings.Builder
 	recent.WriteString(m.th.section.Render("RECENT"))
+	recent.WriteByte('\n')
+	recent.WriteString(m.th.pad(tw))
 	recent.WriteByte('\n')
 	if len(m.posts) == 0 {
 		recent.WriteString(m.th.muted.Render("(no posts yet)"))
@@ -431,18 +450,19 @@ func (m *model) homeContent() string {
 			n = len(m.posts)
 		}
 		for i := 0; i < n; i++ {
-			recent.WriteString(m.postRow(m.posts[i], i == 0))
+			recent.WriteString(m.postRow(m.posts[i], false))
 			if i < n-1 {
 				recent.WriteByte('\n')
 			}
 		}
 	}
 
+	blank := m.th.pad(tw)
 	return lipgloss.JoinVertical(lipgloss.Left,
 		splash,
-		"",
+		blank,
 		m.homeView,
-		"",
+		blank,
 		recent.String(),
 	)
 }
@@ -462,43 +482,32 @@ func (m *model) blogContent() string {
 }
 
 // postRow renders one list row, truncating the title so the row never grows
-// past the content column (an overwide row would break centering).
+// past the text column (an overwide row would break the card).
 func (m *model) postRow(p post, selected bool) string {
-	avail := m.contentWidth - 14 // marker(2) + date(10) + gap(2)
+	avail := m.textWidth() - 14 // marker(2) + date(10) + gap(2)
 	if avail < 8 {
 		avail = 8
 	}
 	title := runewidth.Truncate(p.title, avail, "…")
-	marker, styled := "  ", m.th.itemTitle.Render(title)
+	marker, styled := m.th.pad(2), m.th.itemTitle.Render(title)
 	if selected {
-		marker = m.th.selMarker.Render("▸ ")
+		marker = m.th.selMarker.Render("› ")
 		styled = m.th.selTitle.Render(title)
 	}
-	return marker + m.th.itemDate.Render(dateCol(p)) + "  " + styled
+	return marker + m.th.itemDate.Render(dateCol(p)) + m.th.pad(2) + styled
 }
 
 func (m *model) viewPost() string {
 	if m.cursor < 0 || m.cursor >= len(m.posts) {
-		return m.center("Invalid post")
+		return m.card(m.th.muted.Render("Invalid post"), m.th.hints(postHints...))
 	}
-	hints := m.th.hints(
-		[2]string{"↑/↓", "scroll"},
-		[2]string{"esc", "back"},
-		[2]string{"←/→", "pages"},
-		[2]string{"q", "quit"},
+	title := runewidth.Truncate(m.posts[m.cursor].title, m.textWidth(), "…")
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		m.fillLine(m.th.section.Render(title)),
+		m.th.pad(m.contentWidth),
+		m.scrollbar(m.vp.View()),
 	)
-	if pct := scrollLabel(m.vp); pct != "" {
-		hints += "   " + m.th.muted.Render(pct)
-	}
-
-	inner := lipgloss.JoinVertical(lipgloss.Left,
-		m.navBar(),
-		"",
-		m.vp.View(),
-		"",
-		m.footerBar(hints),
-	)
-	return m.center(padTop(inner, topMargin))
+	return m.card(body, m.th.hints(postHints...))
 }
 
 // dateCol formats a post date as a fixed-width column so titles align; a
@@ -508,20 +517,6 @@ func dateCol(p post) string {
 		return "          " // 10 spaces == len("2006-01-02")
 	}
 	return p.date.Format("2006-01-02")
-}
-
-func scrollLabel(vp viewport.Model) string {
-	if vp.AtTop() && vp.AtBottom() {
-		return ""
-	}
-	return fmt.Sprintf("%3.0f%%", vp.ScrollPercent()*100)
-}
-
-func padTop(s string, n int) string {
-	if n <= 0 {
-		return s
-	}
-	return strings.Repeat("\n", n) + s
 }
 
 func main() {
