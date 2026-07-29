@@ -25,34 +25,46 @@ func introTickCmd() tea.Cmd {
 	return tea.Tick(introTickInterval, func(time.Time) tea.Msg { return introTickMsg{} })
 }
 
+// viewIntro paints the boot inside the same window card as the rest of the UI,
+// so the card is on screen from the first frame and the home screen is a change
+// of contents rather than a change of furniture.
 func (m *model) viewIntro() string {
 	frac := float64(m.frame) / float64(introFrames)
 	if frac > 1 {
 		frac = 1
 	}
 
-	box := m.th.introBox.Render(
-		m.th.brand.Render(letterSpace("TATE McCAULEY")) + "\n" +
-			m.th.tagline.Render("the terminal edition"))
+	cw := m.contentWidth
+	wordmark := m.th.center.Width(cw).Render(m.th.brand.Render(letterSpace("TATE McCAULEY")))
+	tagline := m.th.center.Width(cw).Render(m.th.tagline.Render("the terminal edition"))
 
-	// Size the bar to just inside the box so it centers cleanly underneath.
-	// The percentage lives on the status line, not after the bar — a trailing
-	// label there would shift the bar's visual center off to the left.
-	barWidth := lipgloss.Width(box) - 2
+	// The percentage sits on the status line rather than after the bar: a
+	// trailing label there would shift the bar's visual center off to the left.
+	barWidth := cw / 2
 	if barWidth < 20 {
 		barWidth = 20
 	}
-	status := m.th.key.Render(introSpinner[m.frame%len(introSpinner)]) + " " +
+	if barWidth > cw {
+		barWidth = cw
+	}
+	status := m.th.muted.Render(introSpinner[m.frame%len(introSpinner)]) + m.th.pad(1) +
 		m.th.muted.Render("establishing secure channel") +
 		m.th.muted.Render(fmt.Sprintf("   %3.0f%%", frac*100))
 
-	block := lipgloss.JoinVertical(lipgloss.Center,
-		box,
-		"",
-		status,
-		m.renderBar(barWidth, frac),
+	blank := m.th.pad(cw)
+	block := lipgloss.JoinVertical(lipgloss.Left,
+		blank,
+		wordmark,
+		tagline,
+		blank,
+		m.th.center.Width(cw).Render(status),
+		m.th.center.Width(cw).Render(m.renderBar(barWidth, frac)),
 	)
-	return m.th.r.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
+
+	return m.onDesktop(m.th.card.
+		Padding(cardPadY, m.padX).
+		Width(cw + 2*m.padX).
+		Render(lipgloss.JoinVertical(lipgloss.Left, m.titleBar(), block)))
 }
 
 func (m *model) renderBar(width int, frac float64) string {
