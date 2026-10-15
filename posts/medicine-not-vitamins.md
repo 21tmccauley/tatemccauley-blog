@@ -22,7 +22,7 @@ That sales engineer walking by was the moment the idea clicked for me. Nobody ha
 
 We knew customers needed out-of-the-box ways to configure, containerize and deploy their evidence collection pipelines. What I did not see coming was the demand for us to expand our library of scripts! I became the go-to person to explain how the tool worked and how to build new scripts and integrate them into this framework.
 
-That demand changed the conversation. Our fetchers were already open source. Anyone could clone them, extend them, and point them at any platform. But having the code isn't the same as having it running in your environment, pulling the right evidence for the right requirements. Customers didn't want a repo. They wanted someone to come in and make it work.
+That demand changed the conversation. Our fetchers were already [open source](https://github.com/paramify/paramify-fetchers). Anyone could clone them, extend them, and point them at any platform. But having the code isn't the same as having it running in your environment, pulling the right evidence for the right requirements. Customers didn't want a repo. They wanted someone to come in and make it work.
 
 So we started selling that: implementing and deploying the fetchers, building new ones, and growing the library along the way. Before I knew it, there was a new line item on the order form. It was me. I'd become a forward deployed engineer (FDE): an engineer who works inside a customer's environment to make the product actually work there.
 
